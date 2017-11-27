@@ -1,0 +1,124 @@
+version: "2.1"
+services:
+  redis:
+    image: 172.22.111.199:80/docker-compose/redis:4.0.2 
+    networks:
+      app_net:
+        ipv4_address: 172.238.238.238
+    restart: always
+
+  elasticsearch:
+    image: 172.22.111.199:80/elastic/elasticsearch:5.2.2
+    environment:
+      - bootstrap.memory_lock=true
+    volumes:
+      - /es-data:/usr/share/elasticsearch/data
+      - ./elasticsearch/elasticsearch:/etc/default/elasticsearch
+      - ./elasticsearch/config:/usr/share/elasticsearch/config
+      - /var/log/elasticsearch/logs:/usr/share/elasticsearch/logs
+      - /usr/share/zoneinfo/Asia/Shanghai:/etc/localtime
+      - /etc/timezone:/etc/timezone
+    command: elasticsearch
+    networks:
+      app_net:
+        ipv4_address: 172.238.238.239
+    healthcheck:
+        test: ["CMD", "curl", "-f", "-s", "http://172.238.238.239:9200/_cluster/health?wait_for_status=yellow&timeout=50s"]
+        interval: 30s
+        timeout: 10s
+        retries: 5 
+    restart: always
+
+  logstash-input-es:
+    image: 172.22.111.199:80/elastic/logstash:5.2.2
+    environment:
+      - LS_HEAP_SIZE=2048m
+    volumes:
+      - ./logstash/conf.d/logserver.conf:/etc/logstash/conf.d/logserver.conf
+      - ./logstash/logstash.yml:/etc/logstash/logstash.yml
+      - /usr/share/zoneinfo/Asia/Shanghai:/etc/localtime
+      - /etc/timezone:/etc/timezone
+      - ./logstash/plugin/logstash-filter-translate-3.0.3:/usr/share/logstash/vendor/bundle/jruby/1.9/gems/logstash-filter-translate-3.0.3
+      - ./logstash/plugin/logstash-filter-translate-3.0.3.gemspec:/usr/share/logstash/vendor/bundle/jruby/1.9/specifications/logstash-filter-translate-3.0.3.gemspec
+      - ./logstash/plugin/Gemfile:/usr/share/logstash/Gemfile
+      - ./logstash/plugin/ucss_mapping.json:/opt/ucss_mapping.json
+      - ./mapping/:/opt/mapping
+    command: logstash -w 4 -f /etc/logstash/conf.d/logserver.conf
+    networks:
+      app_net:
+        ipv4_address: 172.238.238.240
+    restart: always
+
+  logstash-input-redis:
+    image: 172.22.111.199:80/elastic/logstash:5.2.2
+    environment:
+      - LS_HEAP_SIZE=2048m
+    volumes:
+      - ./logstash/logstash.yml:/etc/logstash/logstash.yml
+      - ./logstash/logstash-in-redis-conf.d/logserver.conf:/etc/logstash/conf.d/logserver.conf
+      - /usr/share/zoneinfo/Asia/Shanghai:/etc/localtime
+      - /etc/timezone:/etc/timezone
+      - ./logstash/plugin/logstash-filter-translate-3.0.3:/usr/share/logstash/vendor/bundle/jruby/1.9/gems/logstash-filter-translate-3.0.3
+      - ./logstash/plugin/logstash-filter-translate-3.0.3.gemspec:/usr/share/logstash/vendor/bundle/jruby/1.9/specifications/logstash-filter-translate-3.0.3.gemspec
+      - ./logstash/plugin/Gemfile:/usr/share/logstash/Gemfile
+      - ./logstash/plugin/ucss_mapping.json:/opt/ucss_mapping.json
+    command: logstash -w 4 -f /etc/logstash/conf.d/logserver.conf
+    #ports:
+    #  - "5000:5000/udp"
+    networks:
+      app_net:
+        ipv4_address: 172.238.238.241
+    restart: always
+
+  kibana:
+    image: 172.22.111.199:80/elastic/kibana:5.2.2
+    volumes:
+      - ./kibana/kibana.yml:/etc/kibana/kibana.yml
+      - /usr/share/zoneinfo/Asia/Shanghai:/etc/localtime
+      - /etc/timezone:/etc/timezone
+    ports:
+      - "5601:5601"
+    networks:
+      app_net:
+        ipv4_address: 172.238.238.242
+    restart: always
+
+  itp-mrs:
+    image: 172.22.111.199:80/itp/mrs:v0.0.1.112305
+    depends_on:
+      redis:
+        condition: service_started
+      elasticsearch:
+        condition: service_healthy
+    volumes:
+      - ./itp/config/:/usr/share/ITP/mainserver/config/
+      - /var/log/itp/mrs/logs:/usr/share/ITP/mainserver/logs/
+      - ./itp/sources.list:/etc/apt/sources.list
+    networks:
+      app_net:
+        ipv4_address: 172.238.238.243
+    restart: always
+
+  itp-ers:
+    image: 172.22.111.199:80/itp/ers:v0.0.1.112307
+    depends_on:
+      redis:
+        condition: service_started
+      elasticsearch:
+        condition: service_healthy
+    volumes:
+      - ./itp/config/:/usr/share/ITP/mainserver/config/
+      - /var/log/itp/ers/logs:/usr/share/ITP/mainserver/logs/
+      - ./itp/sources.list:/etc/apt/sources.list
+    networks:
+      app_net:
+        ipv4_address: 172.238.238.244
+    restart: always
+
+networks:
+  app_net:
+        driver: bridge
+        ipam:
+            driver: default
+            config:
+            - subnet: 172.238.238.0/24
