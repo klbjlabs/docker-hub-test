@@ -84,7 +84,7 @@ services:
     restart: always
 
   itp-mrs:
-    image: 172.22.111.199:80/itp/mrs:v3
+    image: 172.22.111.199:80/itp/mrs:v6
     depends_on:
       redis:
         condition: service_started
