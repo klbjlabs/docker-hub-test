@@ -100,7 +100,7 @@ services:
     restart: always
 
   itp-ers:
-    image: 172.22.111.199:80/itp/ers:v0.0.1.112307
+    image: 172.22.111.199:80/itp/ers:v6
     depends_on:
       redis:
         condition: service_started
